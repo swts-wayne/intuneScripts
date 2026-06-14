@@ -1,0 +1,7 @@
+$steamExe = "$env:ProgramFiles(x86)\Steam\Steam.exe"
+
+if (Test-Path $steamExe) {
+    exit 0
+} else {
+    exit 1
+}
