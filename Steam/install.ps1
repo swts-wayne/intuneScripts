@@ -10,10 +10,6 @@ if (-not $winget) {
 
 Write-Output "Installing Steam via Winget..."
 
-winget install --id Valve.Steam `
-    --exact `
-    --silent `
-    --accept-package-agreements `
-    --accept-source-agreements
+winget install --id Valve.Steam --exact --silent --accept-package-agreements --accept-source-agreements
 
 exit 0
