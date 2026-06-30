@@ -5,7 +5,7 @@ $ComputerName = $env:COMPUTERNAME
 $RegPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
 $RegPath2 = "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device"
 $Password = ""
-$AdminPassword = "Amulet-Yo-yo-Juror-Compound6"
+$AdminPassword = "junkpassword"
 
 # ============================
 # ALLOW BLANK PASSWORDS
