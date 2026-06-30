@@ -1,26 +1,15 @@
-Write-Host "Installing LocalSend..."
+$ErrorActionPreference = "Stop"
 
-# Ensure winget exists
-if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Error "winget is not available on this system."
+# Ensure Winget is available
+$Winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+
+if (-not $Winget) {
+    Write-Error "Winget not found"
     exit 1
 }
 
-# Optional: wait a bit for winget to initialise (OOBE can be flaky)
-Start-Sleep -Seconds 5
+Write-Output "Installing Local Send via Winget..."
 
-try {
-    winget install `
-        --id LocalSend.LocalSend `
-        --exact `
-        --silent `
-        --accept-package-agreements `
-        --accept-source-agreements `
-        --force
+winget install --id LocalSend.LocalSend --exact --silent --accept-package-agreements --accept-source-agreements
 
-    Write-Host "LocalSend installed successfully."
-}
-catch {
-    Write-Error "Failed to install LocalSend: $_"
-    exit 1
-}
+exit $LASTEXITCODE
