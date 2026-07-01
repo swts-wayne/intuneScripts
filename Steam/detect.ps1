@@ -1,9 +1,16 @@
-#check if the steam.exe exists
-$steamExe = "$env:ProgramFiles(x86)\Steam\Steam.exe"
+#Check if there are any uninstall reg keys for Steam
+$App = Get-ItemProperty `
+    HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*, `
+    HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* `
+    -ErrorAction SilentlyContinue |
+    Where-Object {
+        $_.DisplayName -like "*Steam*"
+    }
 
-if (Test-Path $steamExe) {
+#if not, assume it's not installed
+if ($App) {
     Write-Output "Installed"
     exit 0
-} else {
-    exit 1
 }
+
+exit 1

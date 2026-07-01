@@ -1,4 +1,4 @@
-$exePath = "C:\Program Files\Bambu Studio\BambuStudio.exe"
+$exePath = "C:\Program Files\Bambu Studio\bambu-studio.exe"
 
 if (Test-Path $exePath) {
     $installedVersion = (Get-Item $exePath).VersionInfo.FileVersion
@@ -18,6 +18,7 @@ try {
     Write-Host "Latest version: $latestVersion"
 
     if ([version]$installedVersion -ge [version]$latestVersion) {
+        Write-Host "Installed version is current or newer than the stable release from Bambu"
         exit 0
     } else {
         exit 1
