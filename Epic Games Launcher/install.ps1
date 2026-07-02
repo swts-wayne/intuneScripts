@@ -1,3 +1,4 @@
+#Install Epic Games Launcher
 $ErrorActionPreference = "Stop"
 
 # Ensure winget is available

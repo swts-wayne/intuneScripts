@@ -1,3 +1,4 @@
+#Uninstall script for Epic Games Launcher via Winget
 $ErrorActionPreference = "Stop"
 
 # Ensure winget is available
@@ -12,4 +13,5 @@ Write-Output "Uninstalling Epic Games Launcher via Winget..."
 
 winget uninstall --id EpicGames.EpicGamesLauncher --exact --silent
 
+#This will indicate if the uninstall was successful or not and report back to intune
 exit $LASTEXITCODE
