@@ -1,17 +1,19 @@
 #Uninstall script for Steam via Winget
 $ErrorActionPreference = "Stop"
 
-# Ensure winget is available
-$Winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+$PackageName  = "Valve.Steam"
 
-if (-not $Winget) {
-    Write-Error "Winget not found"
-    exit 1
+# Resolve winget.exe
+$Winget = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"
+if ($Winget.count -gt 1) {
+    $Winget = $Winget[-1].Path
 }
 
-Write-Output "Uninstalling Steam via Winget..."
+if (!$Winget) {
+    Write-Error "winget not installed"
+} else {
+    # uninstall via winget
+    & $Winget uninstall --silent --exact --id $PackageName
+}
 
-winget uninstall --id Valve.Steam --exact --silent
-
-#This will indicate if the uninstall was successful or not and report back to intune
 exit $LASTEXITCODE

@@ -1,27 +1,12 @@
 $ErrorActionPreference = "Stop"
-
-# Ensure winget is available
-$winget = Get-Command winget.exe -ErrorAction SilentlyContinue
-
-if (-not $winget) {
-    Write-Error "Winget not found"
-    exit 1
-}
-
-Write-Output "Installing Steam via Winget..."
-
-winget install --id Valve.Steam --exact --silent --accept-package-agreements --accept-source-agreements
-
-exit $LASTEXITCODE
-
-
-
-
-$ErrorActionPreference = "Stop"
+# https://github.com/microsoft/winget-pkgs/tree/master/manifests/v/Valve/Steam/
+$PackageName  = "Valve.Steam"
+$PackageArch  = "x64"
+$PackageScope = "machine"
 
 # Logging
 $LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs"
-$LogFile = Join-Path $LogPath "Winget-Valve.Steam-Install.log"
+$LogFile = Join-Path $LogPath "Winget-$($PackageName)-Install.log"
 
 if (-not (Test-Path $LogPath)) {
     New-Item -Path $LogPath -ItemType Directory -Force | Out-Null
@@ -49,32 +34,34 @@ Write-Log "===== Script Started ====="
 
 try {
     # Ensure winget exists
-    $Winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+    $Winget = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"
 
     if (-not $Winget) {
         Write-Log "ERROR: Winget not found" -Level ERROR
         exit 1
     }
 
-    Write-Log "Winget found: $($Winget.Source)"
+    if ($Winget.count -gt 1) {
+        $Winget = $Winget[-1].Path
+    }
 
-    $WingetVersion = winget --version
-    Write-Log "Winget version: $WingetVersion"
+    Write-Log "Winget found: $($Winget)"
 
     #Structure our winget arguments so we can capture the outputs from winget
     $Arguments = @(
         "install"
-        "--id", "Valve.Steam"
+        "--id", "$($PackageName)"
         "--exact"
         "--silent"
         "--accept-package-agreements"
         "--accept-source-agreements"
+        "--scope", "$($PackageScope)"
     )
 
     Write-Log "Running: winget $($Arguments -join ' ')"
 
     #This captures all the console prints from winget so we can log them
-    $Output = & winget @Arguments 2>&1
+    $Output = & $Winget @Arguments 2>&1
 
     #Obviously this can only run after winget has "exited" 
     $Output | ForEach-Object {

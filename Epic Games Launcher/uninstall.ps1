@@ -1,17 +1,19 @@
 #Uninstall script for Epic Games Launcher via Winget
 $ErrorActionPreference = "Stop"
 
-# Ensure winget is available
-$winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+$PackageName  = "EpicGames.EpicGamesLauncher"
 
-if (-not $winget) {
-    Write-Error "Winget not found"
-    exit 1
+# Resolve winget.exe
+$Winget = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"
+if ($Winget.count -gt 1) {
+    $Winget = $Winget[-1].Path
 }
 
-Write-Output "Uninstalling Epic Games Launcher via Winget..."
+if (!$Winget) {
+    Write-Error "winget not installed"
+} else {
+    # uninstall via winget
+    & $Winget uninstall --silent --exact --id $PackageName
+}
 
-winget uninstall --id EpicGames.EpicGamesLauncher --exact --silent
-
-#This will indicate if the uninstall was successful or not and report back to intune
 exit $LASTEXITCODE

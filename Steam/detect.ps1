@@ -1,16 +1,21 @@
-#Check if there are any uninstall reg keys for Steam
-$App = Get-ItemProperty `
-    HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*, `
-    HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* `
-    -ErrorAction SilentlyContinue |
-    Where-Object {
-        $_.DisplayName -like "*Steam*"
-    }
+#Detection script for Steam via Winget
+$ErrorActionPreference = "Stop"
 
-#if not, assume it's not installed
-if ($App) {
-    Write-Output "Installed"
-    exit 0
+$PackageName  = "Valve.Steam"
+
+# Resolve winget.exe
+$Winget = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"
+if ($Winget.count -gt 1) {
+    $Winget = $Winget[-1].Path
 }
 
-exit 1
+if (!$Winget) {
+    Write-Error "winget not installed"
+} else {
+    $wingetPrg_Existing = & $Winget list --id $PackageName --exact --accept-source-agreements
+    if ($wingetPrg_Existing -like "*$PackageName*") {
+        Write-Host "found it!"
+    }
+}
+
+exit $LASTEXITCODE

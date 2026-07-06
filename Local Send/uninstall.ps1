@@ -1,11 +1,19 @@
 #Uninstall script for Local Send via Winget
-$Winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+$ErrorActionPreference = "Stop"
 
-if (-not $Winget) {
-    exit 1
+$PackageName  = "LocalSend.LocalSend"
+
+# Resolve winget.exe
+$Winget = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"
+if ($Winget.count -gt 1) {
+    $Winget = $Winget[-1].Path
 }
 
-winget uninstall --id LocalSend.LocalSend --exact --silent
+if (!$Winget) {
+    Write-Error "winget not installed"
+} else {
+    # uninstall via winget
+    & $Winget uninstall --silent --exact --id $PackageName
+}
 
-#This will indicate if the uninstall was successful or not and report back to intune
 exit $LASTEXITCODE
