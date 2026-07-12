@@ -11,3 +11,5 @@ Thumbs.db
 ## don't sync secrets
 secrets.json
 
+## executables don't need to go either
+*.exe
