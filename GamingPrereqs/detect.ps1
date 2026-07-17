@@ -1,25 +1,32 @@
+## This detection script isn't checking to see if the redists are installed, it's checking if Steam has validated that they're installed
+## This is a deliberate choice, as we need to create the keys manually due to a conflict in how Steam handles launching games as a standard user
 
-##Check for vcredisx86
-$vcx86 = Get-ItemProperty `
-    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\VisualStudio\12.0\VC\Runtimes\x86" `
-    -ErrorAction SilentlyContinue
+## See the README for the list of tested games
 
-##Check for vcredisx64
-$vcx64 = Get-ItemProperty `
-    "HKLM:\SOFTWARE\Microsoft\VisualStudio\12.0\VC\Runtimes\x64" `
-    -ErrorAction SilentlyContinue
+##All the relevant keys live here
+$Base = "HKLM:\SOFTWARE\WOW6432Node\Valve\Steam\Apps\CommonRedist"
 
-##Check for directx
-$directx = Test-Path "C:\Windows\System32\XInput1_3.dll"
+try {
 
-if (
-    $vcx86.Installed -eq 1 `
-    -and $vcx64.Installed -eq 1 `
-    -and $directx
-   )
-{
-    Write-Output "Installed"
-    exit 0
+    $DX = (Get-ItemProperty "$Base\DirectX\Jun2010").dxsetup
+    $VC10x86 = (Get-ItemProperty "$Base\vcredist\2010").x86
+    $VC10x64 = (Get-ItemProperty "$Base\vcredist\2010").x64
+    $VC13x86 = (Get-ItemProperty "$Base\vcredist\2013").x86
+    $VC13x64 = (Get-ItemProperty "$Base\vcredist\2013").x64
+
+    if (
+        $DX -eq 1 -and
+        $VC10x86 -eq 1 -and
+        $VC10x64 -eq 1 -and
+        $VC13x86 -eq "12.0.30501" -and
+        $VC13x64 -eq "12.0.30501"
+       )
+    {
+        Write-Host "Installed"
+        exit 0
+    }
+
 }
+catch {}
 
 exit 1
