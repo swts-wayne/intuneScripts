@@ -23,7 +23,12 @@ which required elevation during first launch. When elevation was unavailable, St
 This package pre-installs the required prerequisites and creates the registry markers Steam expects.
 
 ---
+## Tested Games
+ - BongoCat
+ - Ultimate Chicken Horse
+ - Cryptmaster
 
+---
 ## Components Installed
 
 ### Microsoft Visual C++ 2013 Redistributable

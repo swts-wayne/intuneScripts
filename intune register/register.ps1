@@ -17,6 +17,7 @@ catch {
 $TenantID = $secret.TenantID
 $AppID    = $secret.AppID
 $AppSecret = $secret.AppSecret
+$UpgradeToPro = $false
 
 # Basic validation
 if (-not $TenantID -or -not $AppID -or -not $AppSecret) {
@@ -39,9 +40,21 @@ do {
     $selection = Read-Host "Enter selection (1-3)"
 
     switch ($selection) {
-        "1" { $GroupTag = "forge"; $valid = $true }
-        "2" { $GroupTag = "laptop"; $valid = $true }
-        "3" { $GroupTag = "vm"; $valid = $true }
+        "1" {
+            $GroupTag = "forge"
+            $UpgradeToPro = $true
+            $valid = $true
+        }
+        "2" {
+            $GroupTag = "laptop"
+            $UpgradeToPro = $false
+            $valid = $true
+        }
+        "3" {
+            $GroupTag = "vm"
+            $UpgradeToPro = $false
+            $valid = $true
+        }
         default {
             Write-Host "Invalid selection, try again." -ForegroundColor Red
             $valid = $false
@@ -150,6 +163,28 @@ do {
 } while ($attempt -lt $maxAttempts)
 
 if ($assigned) {
+    if ($UpgradeToPro) {
+        $edition = (Get-ComputerInfo).WindowsEditionId
+
+        if ($edition -eq "Core") {
+            Write-Host "Windows Home detected. Upgrading to Pro..." -ForegroundColor Yellow
+
+            try {
+                ##This is the generic Windows Pro key used to upgrade the OEM version
+                changepk.exe /ProductKey VK7JG-NPHTM-C97JM-9MPGT-3V66T
+
+                Write-Host "Pro upgrade initiated." -ForegroundColor Green
+                Write-Host "Rebooting to complete edition upgrade..." -ForegroundColor Green
+            } catch {
+                Write-Host "Failed to start Windows Pro upgrade!" -ForegroundColor Red
+                Write-Host $_
+                exit 1
+            }
+        } else {
+            Write-Host "Windows edition is already $edition" -ForegroundColor Green
+        }
+    }
+
     Write-Host "✅ Profile assigned! Rebooting..." -ForegroundColor Green
     shutdown /r /t 0
 } else {
