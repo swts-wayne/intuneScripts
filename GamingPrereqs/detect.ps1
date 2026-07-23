@@ -14,15 +14,17 @@ try {
     $VC13x86 = (Get-ItemProperty "$Base\vcredist\2013").x86
     $VC13x64 = (Get-ItemProperty "$Base\vcredist\2013").x64
 
+    $DXFile = Test-Path "C:\Windows\System32\XInput1_3.dll"
+
     if (
         $DX -eq 1 -and
         $VC10x86 -eq 1 -and
         $VC10x64 -eq 1 -and
         $VC13x86 -eq "12.0.30501" -and
-        $VC13x64 -eq "12.0.30501"
-       )
+        $VC13x64 -eq "12.0.30501" -and
+        $DXFile
+    )
     {
-        Write-Host "Installed"
         exit 0
     }
 

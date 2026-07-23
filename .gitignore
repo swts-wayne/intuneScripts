@@ -13,3 +13,4 @@ secrets.json
 
 ## executables don't need to go either
 *.exe
+*.zip
