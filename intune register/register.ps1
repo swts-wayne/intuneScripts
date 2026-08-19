@@ -35,9 +35,10 @@ do {
     Write-Host "1 - Pixel Forge" -ForegroundColor Yellow
     Write-Host "2 - Laptop" -ForegroundColor Yellow
     Write-Host "3 - VM" -ForegroundColor Yellow
+    Write-Host "4 - Staff" -ForegroundColor Yellow
     Write-Host ""
 
-    $selection = Read-Host "Enter selection (1-3)"
+    $selection = Read-Host "Enter selection (1-4)"
 
     switch ($selection) {
         "1" {
@@ -52,6 +53,11 @@ do {
         }
         "3" {
             $GroupTag = "vm"
+            $UpgradeToPro = $false
+            $valid = $true
+        }
+        "4" {
+            $GroupTag = "staff"
             $UpgradeToPro = $false
             $valid = $true
         }
