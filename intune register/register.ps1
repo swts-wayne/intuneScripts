@@ -242,7 +242,7 @@ if ($assigned) {
         $edition = (Get-ComputerInfo).WindowsEditionId
 
         if ($edition -eq "Core") {
-            Write-Host "Windows Home detected. Upgrading to Pro..." -ForegroundColor Yellow
+            Write-Host "Windows Home detected. Attempting to upgrade to Pro..." -ForegroundColor Yellow
 
             try {
                 ##This is the generic Windows Pro key used to upgrade the OEM version

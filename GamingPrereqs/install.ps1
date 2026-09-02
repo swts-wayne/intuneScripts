@@ -115,3 +115,28 @@ try {
     Write-Log "DirectX installer exited with code $($Process.ExitCode)"
 
     # ===================================================
+
+    # ================================================================
+# Create Detection Marker
+# ================================================================
+
+$DetectionPath = "HKLM:\SOFTWARE\Company\GamingPrereqs"
+
+Write-Log "Creating detection marker"
+
+New-Item `
+    -Path $DetectionPath `
+    -Force | Out-Null
+
+New-ItemProperty `
+    -Path $DetectionPath `
+    -Name "Installed" `
+    -PropertyType DWord `
+    -Value 1 `
+    -Force | Out-Null
+
+Write-Log "Detection marker created"
+
+Write-Log "===== GamingPrereqs installation completed successfully ====="
+
+exit 0
