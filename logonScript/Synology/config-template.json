@@ -1,0 +1,31 @@
+{
+   "connections" : [
+      {
+          "server_address": "__SERVER__",
+         "username": "__ADMINUSER__",
+         "password": "__PASSWORD__",
+         "as_user": "__USERNAME__",
+         "enable_ssl": true,
+         "allow_untrusted_certificate": false,
+         "enable_startup": true,
+         "sync_sessions" : [
+            {
+               "sharefolder" : "resources",
+               "remote_path" : "/resources/",
+               "local_path" : "C:\\resources",
+               "sync_direction" : 2,
+               "use_ondemand_sync" : true,
+               "sync_temp_file" : true
+            },
+            {
+               "sharefolder" : "players",
+               "remote_path" : "/",
+               "local_path" : "C:\\players",
+               "sync_direction" : 0,
+               "enable_sync_dot_prefix" : true,
+               "use_ondemand_sync" : true
+            }
+         ]
+      }
+   ]
+}

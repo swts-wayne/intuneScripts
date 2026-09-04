@@ -20,6 +20,7 @@ $AppSecret = $secret.AppSecret
 $WifiSSID = $secret.WifiSSID
 $WifiPSK  = $secret.WifiPSK
 $UpgradeToPro = $false
+$ProductKey = $secret.ProductKey
 
 # Basic validation
 if (-not $TenantID -or -not $AppID -or -not $AppSecret) {
@@ -239,24 +240,16 @@ do {
 
 if ($assigned) {
     if ($UpgradeToPro) {
-        $edition = (Get-ComputerInfo).WindowsEditionId
+        try {
+            ##This is the generic Windows Pro key used to upgrade the OEM version
+            changepk.exe /ProductKey $ProductKey
 
-        if ($edition -eq "Core") {
-            Write-Host "Windows Home detected. Attempting to upgrade to Pro..." -ForegroundColor Yellow
-
-            try {
-                ##This is the generic Windows Pro key used to upgrade the OEM version
-                changepk.exe /ProductKey VK7JG-NPHTM-C97JM-9MPGT-3V66T
-
-                Write-Host "Pro upgrade initiated." -ForegroundColor Green
-                Write-Host "Rebooting to complete edition upgrade..." -ForegroundColor Green
-            } catch {
-                Write-Host "Failed to start Windows Pro upgrade!" -ForegroundColor Red
-                Write-Host $_
-                exit 1
-            }
-        } else {
-            Write-Host "Windows edition is already $edition" -ForegroundColor Green
+            Write-Host "Pro upgrade initiated." -ForegroundColor Green
+            Write-Host "Rebooting to complete edition upgrade..." -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to start Windows Pro upgrade!" -ForegroundColor Red
+            Write-Host $_
+            exit 1
         }
     }
 
