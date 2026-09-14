@@ -68,6 +68,15 @@ $RemovePatterns = @(
     "HP Privacy Settings"
 )
 
+# AppX packages to remove
+
+$AppxPackages = @(
+    "AD2F1837.OMENCommandCenter"
+    "AD2F1837.HPJumpStarts"
+    "AD2F1837.HPQuickDrop"
+    "AD2F1837.HPPrivacySettings"
+)
+
 Write-Log "Searching installed applications"
 
 $UninstallKeys = @(
@@ -131,28 +140,27 @@ foreach ($Pattern in $RemovePatterns) {
 }
 
 # Remove AppX packages
-
 Write-Log "Checking AppX packages"
 
-Get-AppxPackage -AllUsers |
-Where-Object {
-    $_.Name -match 'HP|McAfee|Dropbox|ExpressVPN'
-} |
-ForEach-Object {
+foreach ($PackageName in $AppxPackages) {
 
-    try {
+    Get-AppxPackage -AllUsers -Name $PackageName |
+    ForEach-Object {
 
-        Write-Log "Removing AppX package $($_.Name)"
+        try {
 
-        Remove-AppxPackage `
-            -Package $_.PackageFullName `
-            -AllUsers `
-            -ErrorAction Stop
+            Write-Log "Removing AppX package $($_.Name)"
 
-        Write-Log "Successfully removed AppX package $($_.Name)"
-    }
-    catch {
-        Write-Log "Failed removing AppX package $($_.Name): $_" -Level ERROR
+            Remove-AppxPackage `
+                -Package $_.PackageFullName `
+                -AllUsers `
+                -ErrorAction Stop
+
+            Write-Log "Successfully removed AppX package $($_.Name)"
+        }
+        catch {
+            Write-Log "Failed removing AppX package $($_.Name): $_" -Level ERROR
+        }
     }
 }
 

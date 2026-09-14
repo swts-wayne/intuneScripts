@@ -1,7 +1,7 @@
-#Uninstall script for TeamSpeak via Winget
+#Detection script for TeamSpeak 3 via Winget
 $ErrorActionPreference = "Stop"
 
-$PackageName  = "GitHub.GitHubDesktop"
+$PackageName  = "TeamSpeakSystems.TeamSpeakClient"
 
 # Resolve winget.exe
 $Winget = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"
@@ -12,8 +12,10 @@ if ($Winget.count -gt 1) {
 if (!$Winget) {
     Write-Error "winget not installed"
 } else {
-    # uninstall via winget
-    & $Winget uninstall --silent --exact --id $PackageName
+    $wingetPrg_Existing = & $Winget list --id $PackageName --exact --accept-source-agreements
+    if ($wingetPrg_Existing -like "*$PackageName*") {
+        Write-Host "found it!"
+    }
 }
 
 exit $LASTEXITCODE

@@ -8,7 +8,7 @@ try {
         Join-Path $ConfigPath "Secrets.json"
     ) -Raw | ConvertFrom-Json
 
-    $PlayerNumber = ($env:USERNAME -replace '^p', '')
+    $PlayerNumber = ($env:USERNAME -replace '^player', '')
     $PlayerNumber = [int]$PlayerNumber
 
     $SteamUsername = "{0}{1:D2}" -f `
