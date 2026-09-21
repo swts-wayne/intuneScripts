@@ -75,4 +75,3 @@ catch {
     Write-Log $_.Exception.Message -Level ERROR
     exit 1
 }
-`
