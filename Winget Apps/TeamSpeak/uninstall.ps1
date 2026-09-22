@@ -1,7 +1,7 @@
 #Uninstall script for TeamSpeak via Winget
 $ErrorActionPreference = "Stop"
 
-$PackageName  = "TeamSpeakSystems.TeamSpeakClient"
+$PackageName  = "TeamSpeakSystems.TeamSpeakClient.Beta.6"
 
 # Resolve winget.exe
 $Winget = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"

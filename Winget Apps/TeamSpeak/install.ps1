@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
-# https://github.com/microsoft/winget-pkgs/tree/master/manifests/t/TeamSpeakSystems/TeamSpeakClient
-$PackageName  = "TeamSpeakSystems.TeamSpeakClient"
+# https://github.com/microsoft/winget-pkgs/tree/master/manifests/t/TeamSpeakSystems/TeamSpeakClient/Beta
+$PackageName  = "TeamSpeakSystems.TeamSpeakClient.Beta.6"
 $PackageArch  = "x64"
 $PackageScope = "machine"
 
