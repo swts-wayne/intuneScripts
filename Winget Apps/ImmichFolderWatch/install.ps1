@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 # https://github.com/microsoft/winget-pkgs/tree/master/manifests/l/VoltKraft.ImmichFolderWatch
 $PackageName  = "VoltKraft.ImmichFolderWatch"
 $PackageArch  = "x64"
-$PackageScope = "machine"
+$PackageScope = "user"
 
 # Logging
 $LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs"
