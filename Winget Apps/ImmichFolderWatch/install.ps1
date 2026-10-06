@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-# https://github.com/microsoft/winget-pkgs/tree/master/manifests/l/VoltKraft.ImmichFolderWatch
+# https://github.com/microsoft/winget-pkgs/tree/master/manifests/v/VoltKraft/ImmichFolderWatch
 $PackageName  = "VoltKraft.ImmichFolderWatch"
 $PackageArch  = "x64"
 $PackageScope = "user"
