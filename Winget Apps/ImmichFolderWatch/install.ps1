@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 # https://github.com/microsoft/winget-pkgs/tree/master/manifests/v/VoltKraft/ImmichFolderWatch
 $PackageName  = "VoltKraft.ImmichFolderWatch"
 $PackageArch  = "x64"
-$PackageScope = "user"
+#$PackageScope = "user"
 
 # Logging
 $LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs"
@@ -55,7 +55,7 @@ try {
         "--silent"
         "--accept-package-agreements"
         "--accept-source-agreements"
-        "--scope", "$($PackageScope)"
+        #"--scope", "$($PackageScope)"
     )
 
     Write-Log "Running: winget $($Arguments -join ' ')"
