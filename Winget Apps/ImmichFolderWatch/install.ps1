@@ -55,7 +55,6 @@ try {
         "--silent"
         "--accept-package-agreements"
         "--accept-source-agreements"
-        #"--scope", "$($PackageScope)"
     )
 
     Write-Log "Running: winget $($Arguments -join ' ')"
