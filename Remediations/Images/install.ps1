@@ -15,7 +15,7 @@ $ImmichApiKey = "REPLACE_WITH_API_KEY"
 # PATHS
 # ----------------------------------------------------------------------------
 
-$ImageFolder  = "C:\resources\images"
+$ImageFolder = "C:\resources\images"
 
 $ConfigFolder = Join-Path `
     $env:LOCALAPPDATA `
@@ -24,15 +24,6 @@ $ConfigFolder = Join-Path `
 $ConfigFile = Join-Path `
     $ConfigFolder `
     "config.yaml"
-
-# ----------------------------------------------------------------------------
-# EXIT IF ALREADY CONFIGURED
-# ----------------------------------------------------------------------------
-
-if (Test-Path $ConfigFile) {
-    Write-Host "Immich Folder Watch already configured."
-    exit 0
-}
 
 # ----------------------------------------------------------------------------
 # CREATE IMAGE FOLDER
@@ -44,6 +35,8 @@ if (-not (Test-Path $ImageFolder)) {
         -ItemType Directory `
         -Path $ImageFolder `
         -Force | Out-Null
+
+    Write-Host "Created image folder."
 }
 
 # ----------------------------------------------------------------------------
@@ -67,6 +60,41 @@ if (-not (Test-Path $ShortcutPath)) {
     $Shortcut.IconLocation = "shell32.dll,4"
 
     $Shortcut.Save()
+
+    Write-Host "Created desktop shortcut."
+}
+
+# ----------------------------------------------------------------------------
+# CREATE STARTUP ENTRY
+# ----------------------------------------------------------------------------
+
+$RunKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+
+$RunValue = "`"C:\Program Files\Immich Folder Watch\bin\ImmichFolderWatch.exe`""
+
+$CurrentRunValue = $null
+
+try {
+    $CurrentRunValue = (
+        Get-ItemProperty `
+            -Path $RunKey `
+            -Name "ImmichFolderWatch" `
+            -ErrorAction Stop
+    ).ImmichFolderWatch
+}
+catch {
+}
+
+if ($CurrentRunValue -ne $RunValue) {
+
+    New-ItemProperty `
+        -Path $RunKey `
+        -Name "ImmichFolderWatch" `
+        -PropertyType String `
+        -Value $RunValue `
+        -Force | Out-Null
+
+    Write-Host "Configured startup entry."
 }
 
 # ----------------------------------------------------------------------------
@@ -79,13 +107,17 @@ if (-not (Test-Path $ConfigFolder)) {
         -ItemType Directory `
         -Path $ConfigFolder `
         -Force | Out-Null
+
+    Write-Host "Created config folder."
 }
 
 # ----------------------------------------------------------------------------
-# WRITE CONFIG
+# CONFIG CONTENT
 # ----------------------------------------------------------------------------
 
 $Config = @"
+# Managed by SWTS Platform Script
+
 immich:
   serverApiUrl: $ImmichApiUrl
   apiKey: $ImmichApiKey
@@ -183,11 +215,41 @@ localization:
   language: auto
 "@
 
-$Config | Set-Content `
-    -Path $ConfigFile `
-    -Encoding UTF8 `
-    -Force
+# ----------------------------------------------------------------------------
+# CREATE OR UPDATE CONFIG
+# ----------------------------------------------------------------------------
 
-Write-Host "Immich Folder Watch configuration created."
+$UpdateConfig = $false
+
+if (Test-Path $ConfigFile) {
+
+    $ExistingConfig = Get-Content `
+        $ConfigFile `
+        -Raw
+
+    if ($ExistingConfig -ne $Config) {
+        $UpdateConfig = $true
+    }
+}
+else {
+
+    $UpdateConfig = $true
+}
+
+if ($UpdateConfig) {
+
+    $Config | Set-Content `
+        le `
+        -Encoding UTF8 `
+        -Force
+
+    Write-Host "Config created/updated."
+}
+else {
+
+    Write-Host "Config already current."
+}
+
+Write-Host "Immich Folder Watch configuration complete."
 
 exit 0
