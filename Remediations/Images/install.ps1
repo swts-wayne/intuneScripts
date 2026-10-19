@@ -43,7 +43,7 @@ if (-not (Test-Path $ImageFolder)) {
 # CREATE DESKTOP SHORTCUT
 # ----------------------------------------------------------------------------
 
-$DesktopPath = [Environment\]::GetFolderPath("Desktop")
+$DesktopPath = [Environment]::GetFolderPath("Desktop")
 
 $ShortcutPath = Join-Path `
     $DesktopPath `
@@ -239,7 +239,7 @@ else {
 if ($UpdateConfig) {
 
     $Config | Set-Content `
-        le `
+        -Path $ConfigFile `
         -Encoding UTF8 `
         -Force
 
