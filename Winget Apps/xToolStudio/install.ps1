@@ -3,6 +3,7 @@ $ErrorActionPreference = "Stop"
 $PackageName  = "Makeblock.xToolStudio"
 $PackageArch  = "x64"
 $PackageScope = "machine"
+$InstallPath = "C:\Program Files\xToolStudio"
 
 # Logging
 $LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs"
@@ -56,6 +57,7 @@ try {
         "--accept-package-agreements"
         "--accept-source-agreements"
         "--scope", "$($PackageScope)"
+        "--location", "$($InstallPath)"
     )
 
     Write-Log "Running: winget $($Arguments -join ' ')"
