@@ -1,19 +1,21 @@
 <#
 .SYNOPSIS
-    Installs or uninstalls Unreal Engine from the Epic offline-installer MSI,
-    pulling the MSI from an internal NAS instead of shipping it through Intune.
+    Installs or uninstalls Unreal Engine from Epic's offline installer (a .zip containing the MSI
+    and its payload), pulling the zip from an internal server instead of shipping it through Intune.
 
 .DESCRIPTION
-    Intune only carries this script (a few KB). On the device it:
+    Intune only carries this script and secrets.json (a few KB). On the device it:
       1. Skips everything if the engine is already installed
-      2. Waits a random delay so a fleet doesn't hit the NAS at the same moment
+      2. Waits a random delay so a fleet doesn't hit the file server at the same moment
       3. Checks free disk space
-      4. Downloads the MSI with BITS (resumable), falling back to curl.exe
-      5. Verifies the SHA256 against the value pinned below
-      6. Runs msiexec silently with verbose logging
-      7. Deletes the downloaded MSI on success
+      4. Downloads the zip with BITS (resumable), falling back to curl.exe
+      5. Verifies the zip's SHA256 against the value pinned below
+      6. Extracts it (tar.exe, falling back to .NET) and deletes the zip to free space
+      7. Finds the MSI in the extracted files and runs msiexec silently with verbose logging
+      8. Deletes the extracted files on success
 
-    Safe to re-run: Intune retries failed installs, and a partial download resumes.
+    Safe to re-run: Intune retries failed installs. A partial download resumes, and a completed
+    extraction is reused if only the MSI step failed.
 
 .PARAMETER Action
     Install or Uninstall.
@@ -30,23 +32,32 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Intune's agent is a 32-bit process, so powershell.exe starts as 32-bit by default and System32
+# gets redirected to SysWOW64. Re-run in 64-bit PowerShell so tar/msiexec/curl behave normally.
+if ($env:PROCESSOR_ARCHITEW6432 -eq 'AMD64') {
+    $ps64 = Join-Path $env:windir 'sysnative\WindowsPowerShell\v1.0\powershell.exe'
+    & $ps64 -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -Action $Action
+    exit $LASTEXITCODE
+}
+
 # ============================ CONFIG: edit per engine version ============================
 $Config = @{
-    EngineVersion   = '5.8.4'                                   # label used in logs and BITS job name
-    MsiUrl          = ''                                      # supplied by secrets.json (not committed to git)
-    MsiFileName     = 'UnrealEngineInstaller'
-    MsiSha256       = '9E5A45B5865C4F995FD2773586313FF90741B14FA343E71426EC707068146B11'
+    EngineVersion   = '5.8.4'                                 # label used in logs, BITS job and staging folder names
+    ZipUrl          = ''                                      # supplied by secrets.json (not committed to git)
+    ZipFileName     = 'UnrealEngineInstaller5-8-4.zip'
+    ZipSha256       = 'PASTE_SHA256_OF_THE_ZIP'               # from Get-MsiInfo.ps1 -ZipPath
+    MsiRelPath      = ''                                      # MSI path inside the zip, e.g. 'Installer\UnrealEngine.msi'. Blank = auto-detect (must be the only .msi)
     ProductCode     = '{222D5CFC-D556-4F66-922D-85F180F4C646}'   # needed for uninstall
     InstallLocation = 'C:\Program Files\Epic Games\UE_5.X'    # verify against a test install
     DetectRelPath   = 'Engine\Binaries\Win64\UnrealEditor.exe' # file that proves the install worked
     ExtraMsiArgs    = ''                                      # e.g. the symbols property, see Get-MsiInfo.ps1 -AllProperties
-    MinFreeGB       = 120                                     # headroom for MSI download + installed engine
+    MinFreeGB       = 250                                     # peak need is roughly zip + extracted files, or extracted + installed engine. Adjust to your sizes
     MaxJitterSec    = 900                                     # random start delay, 0..N seconds
 }
 # ==========================================================================================
 
 $PackageName = "UnrealEngine-$($Config.EngineVersion)"
-$WorkDir = Join-Path $env:ProgramData 'UEDeploy'   # downloaded MSI lives here (deleted after install)
+$WorkDir = Join-Path $env:ProgramData 'UEDeploy'   # zip and extracted files live here temporarily
 New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null
 
 # Logging
@@ -58,8 +69,6 @@ if (-not (Test-Path $LogPath)) {
     New-Item -Path $LogPath -ItemType Directory -Force | Out-Null
 }
 
-$MsiPath = Join-Path $WorkDir $Config.MsiFileName
-$DetectFile = Join-Path $Config.InstallLocation $Config.DetectRelPath
 $BitsJobName = "UEDeploy-$($Config.EngineVersion)"
 
 function Write-Log {
@@ -80,8 +89,17 @@ function Write-Log {
 }
 
 # NOTE: Write-Log uses Write-Output, so anything it logs inside a function ends up in that
-# function's return value. Functions that return a value (Test-InstallerHash, Invoke-Msiexec)
-# therefore must not call Write-Log; their callers log before and after instead.
+# function's return value. Functions that return a value (Test-ZipHash, Get-StagedMsi,
+# Invoke-Msiexec) therefore must not call Write-Log; their callers log before and after instead.
+
+function Set-DerivedPaths {
+    # Everything computed from $Config; called at start-up and again after secrets.json is merged
+    $script:ZipPath    = Join-Path $WorkDir $script:Config.ZipFileName
+    $script:StageDir   = Join-Path $WorkDir "stage-$($script:Config.EngineVersion)"
+    $script:StageDone  = Join-Path $WorkDir "stage-$($script:Config.EngineVersion).complete"
+    $script:DetectFile = Join-Path $script:Config.InstallLocation $script:Config.DetectRelPath
+}
+Set-DerivedPaths
 
 function Import-Secrets {
     # Merges secrets.json (same folder as this script) over the CONFIG block.
@@ -97,19 +115,18 @@ function Import-Secrets {
         Write-Log "Loaded '$($prop.Name)' from secrets.json"
     }
 
-    # Anything derived from the config has to be recalculated after the merge
-    $script:DetectFile = Join-Path $script:Config.InstallLocation $script:Config.DetectRelPath
+    Set-DerivedPaths
 
-    if ([string]::IsNullOrWhiteSpace($script:Config.MsiUrl) -or $script:Config.MsiUrl -match 'example\.|PASTE') {
-        throw 'MsiUrl is missing or still a placeholder in secrets.json'
+    if ([string]::IsNullOrWhiteSpace($script:Config.ZipUrl) -or $script:Config.ZipUrl -match 'example\.|PASTE') {
+        throw 'ZipUrl is missing or still a placeholder in secrets.json'
     }
 }
 
-function Test-InstallerHash {
+function Test-ZipHash {
     param([string]$Path)
     if (-not (Test-Path $Path)) { return $false }
     $actual = (Get-FileHash -Path $Path -Algorithm SHA256).Hash
-    return ($actual -eq $Config.MsiSha256.Trim().ToUpper())
+    return ($actual -eq $Config.ZipSha256.Trim().ToUpper())
 }
 
 function Assert-FreeSpace {
@@ -121,19 +138,33 @@ function Assert-FreeSpace {
     if ($freeGB -lt $GB) { throw "Not enough free space on $root ($freeGB GB free, $GB GB required)" }
 }
 
-function Get-Installer {
+function Remove-Tree {
+    # rd /s /q is far faster than Remove-Item -Recurse on trees with tens of thousands of files
+    param([string]$Path)
+    if (Test-Path $Path) {
+        & "$env:SystemRoot\System32\cmd.exe" /c rd /s /q $Path
+    }
+}
+
+function Remove-Staging {
+    Remove-Tree -Path $StageDir
+    Remove-Item -Path $StageDone -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $ZipPath -Force -ErrorAction SilentlyContinue
+}
+
+function Get-Zip {
     # Reuse a previously downloaded, verified copy
-    if (Test-Path $MsiPath) {
-        Write-Log "Found existing $MsiPath, verifying SHA256 (large file, takes a few minutes)"
-        if (Test-InstallerHash -Path $MsiPath) {
-            Write-Log 'Existing MSI verified, skipping download'
+    if (Test-Path $ZipPath) {
+        Write-Log "Found existing $ZipPath, verifying SHA256 (large file, takes a few minutes)"
+        if (Test-ZipHash -Path $ZipPath) {
+            Write-Log 'Existing zip verified, skipping download'
             return
         }
-        Write-Log 'Existing MSI failed hash check, deleting' 'WARNING'
-        Remove-Item $MsiPath -Force
+        Write-Log 'Existing zip failed hash check, deleting' 'WARNING'
+        Remove-Item $ZipPath -Force
     }
 
-    Write-Log "Downloading $($Config.MsiUrl)"
+    Write-Log "Downloading $($Config.ZipUrl)"
     $downloaded = $false
 
     # Primary: BITS. Resumable, bandwidth-friendly, survives network blips.
@@ -145,7 +176,7 @@ function Get-Installer {
             Resume-BitsTransfer -BitsJob $job -Asynchronous | Out-Null
         }
         else {
-            $job = Start-BitsTransfer -Source $Config.MsiUrl -Destination $MsiPath `
+            $job = Start-BitsTransfer -Source $Config.ZipUrl -Destination $ZipPath `
                 -DisplayName $BitsJobName -Asynchronous -Priority Normal `
                 -RetryInterval 60 -RetryTimeout 7200
         }
@@ -180,16 +211,70 @@ function Get-Installer {
         if (-not (Test-Path $curl)) { throw 'BITS failed and curl.exe is not available' }
         $p = Start-Process -FilePath $curl -Wait -PassThru -NoNewWindow -ArgumentList @(
             '--fail', '--location', '--retry', '5', '--retry-delay', '30', '-C', '-',
-            '--output', "`"$MsiPath`"", "`"$($Config.MsiUrl)`"")
+            '--output', "`"$ZipPath`"", "`"$($Config.ZipUrl)`"")
         if ($p.ExitCode -ne 0) { throw "curl.exe failed with exit code $($p.ExitCode)" }
     }
 
     Write-Log 'Download finished, verifying SHA256 (large file, takes a few minutes)'
-    if (-not (Test-InstallerHash -Path $MsiPath)) {
-        Remove-Item $MsiPath -Force -ErrorAction SilentlyContinue
-        throw 'Downloaded MSI failed SHA256 verification (deleted; the next retry will re-download)'
+    if (-not (Test-ZipHash -Path $ZipPath)) {
+        Remove-Item $ZipPath -Force -ErrorAction SilentlyContinue
+        throw 'Downloaded zip failed SHA256 verification (deleted; the next retry will re-download)'
     }
     Write-Log 'Download complete and hash verified'
+}
+
+function Expand-Stage {
+    # Extracts the zip into $StageDir. A marker file records a complete extraction so a retry can skip it.
+    if (Test-Path $StageDone) {
+        Write-Log 'Extracted files already present, skipping extraction'
+        return
+    }
+    if (-not (Test-Path $ZipPath)) { throw "Zip not found at $ZipPath" }
+
+    if (Test-Path $StageDir) {
+        Write-Log 'Removing incomplete staging folder from a previous attempt' 'WARNING'
+        Remove-Tree -Path $StageDir
+    }
+    New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
+
+    $extracted = $false
+
+    # Primary: tar.exe (bsdtar, Windows 10 1803+). Much faster than Expand-Archive and handles zip64.
+    $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
+    if (Test-Path $tar) {
+        Write-Log 'Extracting with tar.exe (this can take a while)'
+        $p = Start-Process -FilePath $tar -Wait -PassThru -NoNewWindow `
+            -ArgumentList @('-xf', "`"$ZipPath`"", '-C', "`"$StageDir`"")
+        if ($p.ExitCode -eq 0) {
+            $extracted = $true
+        }
+        else {
+            Write-Log "tar.exe failed with exit code $($p.ExitCode), falling back to .NET" 'WARNING'
+            Remove-Tree -Path $StageDir
+            New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
+        }
+    }
+
+    # Fallback: .NET ZipFile (slower, but no external dependency)
+    if (-not $extracted) {
+        Write-Log 'Extracting with .NET ZipFile (this can take a while)'
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $StageDir)
+    }
+
+    Set-Content -Path $StageDone -Value (Get-Date -Format 'o')
+    Write-Log 'Extraction complete'
+}
+
+function Get-StagedMsi {
+    if ($Config.MsiRelPath) {
+        $path = Join-Path $StageDir $Config.MsiRelPath
+        if (-not (Test-Path $path)) { throw "MsiRelPath not found in extracted files: $path" }
+        return $path
+    }
+    $found = @(Get-ChildItem -Path $StageDir -Filter '*.msi' -Recurse -File)
+    if ($found.Count -eq 1) { return $found[0].FullName }
+    throw "Expected exactly one .msi in the extracted files but found $($found.Count): $(($found.FullName) -join '; '). Set MsiRelPath in the config."
 }
 
 function Invoke-Msiexec {
@@ -206,19 +291,35 @@ try {
         'Install' {
             if (Test-Path $DetectFile) {
                 Write-Log "Already installed ($DetectFile exists), nothing to do"
+                Remove-Staging
                 exit 0
             }
 
-            # Spread the load on the NAS when many devices start at once
-            $delay = Get-Random -Minimum 0 -Maximum ($Config.MaxJitterSec + 1)
-            Write-Log "Jitter delay: $delay s"
-            Start-Sleep -Seconds $delay
+            if (-not (Test-Path $StageDone)) {
+                # Spread the load on the file server when many devices start at once
+                $delay = Get-Random -Minimum 0 -Maximum ($Config.MaxJitterSec + 1)
+                Write-Log "Jitter delay: $delay s"
+                Start-Sleep -Seconds $delay
 
-            New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null
-            Assert-FreeSpace -Path $WorkDir -GB $Config.MinFreeGB
-            Get-Installer
+                Assert-FreeSpace -Path $WorkDir -GB $Config.MinFreeGB
+                Get-Zip
+                Expand-Stage
+                # Free the space before the install needs it
+                Remove-Item -Path $ZipPath -Force -ErrorAction SilentlyContinue
+            }
+            else {
+                Write-Log 'Extracted files from a previous attempt found, skipping download and extraction'
+            }
 
-            $argString = "/i `"$MsiPath`" /qn /norestart /l*v `"$MsiLog`" INSTALLLOCATION=`"$($Config.InstallLocation)`""
+            try { $msi = Get-StagedMsi }
+            catch {
+                Write-Log 'Staged files are unusable, clearing them so the next attempt starts fresh' 'WARNING'
+                Remove-Staging
+                throw
+            }
+            Write-Log "Using MSI: $msi"
+
+            $argString = "/i `"$msi`" /qn /norestart /l*v `"$MsiLog`" INSTALLLOCATION=`"$($Config.InstallLocation)`""
             if ($Config.ExtraMsiArgs) { $argString += " $($Config.ExtraMsiArgs)" }
             Write-Log "msiexec $argString"
             $code = Invoke-Msiexec -Arguments $argString
@@ -227,10 +328,11 @@ try {
                 if (-not (Test-Path $DetectFile)) {
                     throw "msiexec reported success ($code) but $DetectFile is missing. Check DetectRelPath/InstallLocation."
                 }
-                Write-Log "Install succeeded (exit $code)"
-                Remove-Item $MsiPath -Force -ErrorAction SilentlyContinue
+                Write-Log "Install succeeded (exit $code), cleaning up staged files"
+                Remove-Staging
                 exit $code
             }
+            Write-Log 'Keeping extracted files so a retry can skip the download' 'WARNING'
             throw "msiexec failed with exit code $code (see $MsiLog)"
         }
 
@@ -241,6 +343,7 @@ try {
             # 1605 = product not installed; treat as success so Intune doesn't loop
             if ($code -in 0, 3010, 1605) {
                 Write-Log "Uninstall finished (exit $code)"
+                Remove-Staging
                 exit $(if ($code -eq 1605) { 0 } else { $code })
             }
             throw "msiexec uninstall failed with exit code $code (see $MsiLog)"
