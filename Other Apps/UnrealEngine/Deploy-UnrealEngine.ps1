@@ -32,11 +32,11 @@ $ErrorActionPreference = 'Stop'
 
 # ============================ CONFIG: edit per engine version ============================
 $Config = @{
-    EngineVersion   = '5.X'                                   # label used in logs and BITS job name
+    EngineVersion   = '5.8.4'                                   # label used in logs and BITS job name
     MsiUrl          = ''                                      # supplied by secrets.json (not committed to git)
-    MsiFileName     = 'UnrealEngine-5.X.msi'
-    MsiSha256       = 'PASTE_SHA256_FROM_Get-MsiInfo.ps1'
-    ProductCode     = '{PASTE-PRODUCT-CODE-FROM-Get-MsiInfo.ps1}'   # needed for uninstall
+    MsiFileName     = 'UnrealEngineInstaller'
+    MsiSha256       = '9E5A45B5865C4F995FD2773586313FF90741B14FA343E71426EC707068146B11'
+    ProductCode     = '{222D5CFC-D556-4F66-922D-85F180F4C646}'   # needed for uninstall
     InstallLocation = 'C:\Program Files\Epic Games\UE_5.X'    # verify against a test install
     DetectRelPath   = 'Engine\Binaries\Win64\UnrealEditor.exe' # file that proves the install worked
     ExtraMsiArgs    = ''                                      # e.g. the symbols property, see Get-MsiInfo.ps1 -AllProperties
