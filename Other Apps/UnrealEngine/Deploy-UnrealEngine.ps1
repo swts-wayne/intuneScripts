@@ -45,10 +45,10 @@ $Config = @{
     EngineVersion   = '5.8.4'                                 # label used in logs, BITS job and staging folder names
     ZipUrl          = ''                                      # supplied by secrets.json (not committed to git)
     ZipFileName     = 'UnrealEngineInstaller5-8-4.zip'
-    ZipSha256       = 'PASTE_SHA256_OF_THE_ZIP'               # from Get-MsiInfo.ps1 -ZipPath
+    ZipSha256       = 'A0B28A67EF294E83687B7B7272BAAA3CABD019B3D8ACF5C2AEF8C6B45FD3213D'               # from Get-MsiInfo.ps1 -ZipPath
     MsiRelPath      = ''                                      # MSI path inside the zip, e.g. 'Installer\UnrealEngine.msi'. Blank = auto-detect (must be the only .msi)
     ProductCode     = '{222D5CFC-D556-4F66-922D-85F180F4C646}'   # needed for uninstall
-    InstallLocation = 'C:\Program Files\Epic Games\UE_5.X'    # verify against a test install
+    InstallLocation = 'C:\Program Files\Epic Games\UE_5.8.4'    # verify against a test install
     DetectRelPath   = 'Engine\Binaries\Win64\UnrealEditor.exe' # file that proves the install worked
     ExtraMsiArgs    = ''                                      # e.g. the symbols property, see Get-MsiInfo.ps1 -AllProperties
     MinFreeGB       = 250                                     # peak need is roughly zip + extracted files, or extracted + installed engine. Adjust to your sizes
