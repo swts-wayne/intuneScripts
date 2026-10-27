@@ -1,9 +1,12 @@
+# Install xToolStudio with winget; this is longer than other scripts as the xToolStudio winget script doesn't appropriately apply the scope and caused issues for deployment
 $ErrorActionPreference = "Stop"
 # https://github.com/microsoft/winget-pkgs/tree/master/manifests/m/Makeblock/xToolStudio
 $PackageName  = "Makeblock.xToolStudio"
 $PackageArch  = "x64"
 $PackageScope = "machine"
-$InstallPath = "C:\Program Files\xToolStudio"
+$InstallPath  = "C:\Program Files\xToolStudio"
+$ExeName      = "xTool Studio.exe"      # confirm against a test install
+$ShortcutName = "xTool Studio.lnk"      # must match the detection script
 
 # Logging
 $LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs"
@@ -35,7 +38,7 @@ Write-Log "===== Script Started ====="
 
 try {
     # Ensure winget exists
-    $Winget = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"
+    $Winget = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe" -ErrorAction SilentlyContinue
 
     if (-not $Winget) {
         Write-Log "ERROR: Winget not found" -Level ERROR
@@ -48,7 +51,43 @@ try {
 
     Write-Log "Winget found: $($Winget)"
 
+    # --- Legacy cleanup: per-user install registered in SYSTEM's hive (HKCU when running as SYSTEM) ---
+    $OldEntry = Get-ItemProperty 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
+        Where-Object DisplayName -like '*xTool*' |
+        Select-Object -First 1
+
+    if ($OldEntry) {
+        Write-Log "Found legacy per-user install: $($OldEntry.DisplayName) $($OldEntry.DisplayVersion)"
+
+        Get-Process -ErrorAction SilentlyContinue |
+            Where-Object { $_.Path -like "$InstallPath\*" } |
+            Stop-Process -Force
+        
+        $UninstallExe = $OldEntry.UninstallString -replace '^"?([^"]+\.exe)"?.*', '$1'
+
+        if (Test-Path $UninstallExe) {
+            $UninstallDir = Split-Path $UninstallExe
+            Write-Log "Running uninstaller: $UninstallExe"
+            # _?= makes the NSIS uninstaller run in place and block until it finishes
+            Start-Process -FilePath $UninstallExe -ArgumentList "/S", "_?=$UninstallDir" -Wait
+            Remove-Item $UninstallExe -Force -ErrorAction SilentlyContinue
+        } else {
+            Write-Log "Uninstaller not found at $UninstallExe, skipping" -Level WARNING
+        }
+
+        # Remove leftover files and the stale registry key so winget doesn't see two installs
+        if (Test-Path $InstallPath) {
+            Remove-Item $InstallPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        if ($OldEntry.PSPath) {
+            Remove-Item $OldEntry.PSPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        Write-Log "Legacy cleanup complete"
+    }
+
     #Structure our winget arguments so we can capture the outputs from winget
+    # --override replaces the installer's default switches, so /S is required.
+    # /D must be last and unquoted. It replaces --location here.
     $Arguments = @(
         "install"
         "--id", "$($PackageName)"
@@ -57,7 +96,7 @@ try {
         "--accept-package-agreements"
         "--accept-source-agreements"
         "--scope", "$($PackageScope)"
-        "--location", "$($InstallPath)"
+        "--override", "/S /allusers /D=$($InstallPath)"
     )
 
     Write-Log "Running: winget $($Arguments -join ' ')"
@@ -73,6 +112,40 @@ try {
     $ExitCode = $LASTEXITCODE
 
     Write-Log "Winget exit code: $ExitCode"
+
+    if ($ExitCode -eq 0) {
+        # --- Safety net: create all-users shortcuts if the installer didn't ---
+        $Exe = Join-Path $InstallPath $ExeName
+        if (Test-Path $Exe) {
+            $ws = New-Object -ComObject WScript.Shell
+            $Shortcuts = @(
+                "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\$ShortcutName",
+                "$env:PUBLIC\Desktop\$ShortcutName"
+            )
+            foreach ($Path in $Shortcuts) {
+                if (-not (Test-Path $Path)) {
+                    $lnk = $ws.CreateShortcut($Path)
+                    $lnk.TargetPath = $Exe
+                    $lnk.WorkingDirectory = $InstallPath
+                    $lnk.Save()
+                    Write-Log "Created shortcut: $Path"
+                }
+            }
+        } else {
+            Write-Log "Exe not found at $Exe, shortcuts not created" -Level WARNING
+        }
+
+        # --- Verify the uninstall entry landed in HKLM ---
+        $Hklm = Get-ItemProperty `
+            'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' `
+            -ErrorAction SilentlyContinue |
+            Where-Object DisplayName -like '*xTool*'
+        if (-not $Hklm) {
+            Write-Log "No HKLM uninstall entry found after install, check /allusers handling" -Level WARNING
+        }
+    }
+
     Write-Log "===== Script Finished ====="
 
     exit $ExitCode

@@ -51,7 +51,7 @@ $Config = @{
     InstallLocation = 'C:\Program Files\Epic Games\UE_5.8.4'    # verify against a test install
     DetectRelPath   = 'Engine\Binaries\Win64\UnrealEditor.exe' # file that proves the install worked
     ExtraMsiArgs    = ''                                      # e.g. the symbols property, see Get-MsiInfo.ps1 -AllProperties
-    MinFreeGB       = 250                                     # peak need is roughly zip + extracted files, or extracted + installed engine. Adjust to your sizes
+    MinFreeGB       = 70                                     # peak need is roughly zip + extracted files, or extracted + installed engine. Adjust to your sizes
     MaxJitterSec    = 900                                     # random start delay, 0..N seconds
 }
 # ==========================================================================================
