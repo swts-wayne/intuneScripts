@@ -10,6 +10,27 @@ Epic's offline installer is a large `.zip` containing a small MSI plus its paylo
 
 If the MSI step fails, the next Intune retry reuses the extracted files instead of downloading again.
 
+## VC++ runtime
+
+The offline installer doesn't install the Microsoft Visual C++ runtime, and the editor crashes at launch with a "wrong version of the VC++ redistributable" error if the PC's copy is too old. The script handles this first, before the big download:
+
+- It reads the installed 2015-2022 x64 runtime version from the registry. If it's already at or above `VcRedistMinVersion`, it does nothing.
+- Otherwise it downloads Microsoft's current `vc_redist.x64.exe` (`VcRedistUrl`), checks it has a valid Microsoft signature, and installs it silently. No hash is pinned because Microsoft's "latest" link changes; the signature check replaces it.
+- It then re-checks the version and fails loudly if it's still below the minimum.
+- Exit 3010 (reboot pending) from the redistributable is passed on to Intune as a soft reboot.
+- Uninstalling the engine leaves the runtime alone, because other software uses it.
+
+**Set `VcRedistMinVersion`** from a PC where the editor launches (for example after the winget install):
+
+```powershell
+$v = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64'
+"{0}.{1}.{2}.{3}" -f $v.Major, $v.Minor, $v.Bld, $v.Rbld
+```
+
+To serve the installer from your own server instead of Microsoft (offline PCs, or to pin a version), host `vc_redist.x64.exe` there and put its URL in `secrets.json` as `VcRedistUrl`. The signature check still applies.
+
+Logs: `UnrealEngine-<ver>-vcredist.log` in the IME Logs folder, beside the others.
+
 ## 1. Gather details (once per engine version)
 
 On any Windows machine:
@@ -34,6 +55,8 @@ Fill in the CONFIG block of `Deploy-UnrealEngine.ps1`:
 | `ExtraMsiArgs` | optional. Find Epic's debug-symbols property via `-AllProperties` (or Epic's offline installer docs) and add it, e.g. `SOMEPROPERTY=1` |
 | `MinFreeGB` | see sizing below |
 
+**Measured for 5.8.4:** zip about 31 GiB, extracted about 40 GB, installed about 75 GB. Extraction peaks at about 71 GB (zip plus extracted), the install stage at about 115 GB (extracted plus installed), and the final footprint is about 75 GB once the staged files are deleted. `MinFreeGB = 130` leaves margin over the install-stage peak.
+
 **Sizing:** `-ZipPath` shows the zip size and total uncompressed size. Peak disk use is roughly the zip plus the extracted files (during extraction), or the extracted files plus the installed engine (during install). The zip is deleted right after extraction. Set `MinFreeGB` above whichever peak is larger, with margin, and check your PCs actually have that free.
 
 ## Secrets
@@ -44,7 +67,7 @@ The script reads `secrets.json` from its own folder and merges it over the CONFI
 { "ZipUrl": "https://files.example.com/ue/UnrealEngine-5.X.zip" }
 ```
 
-- Commit `secrets-template.json`, never `secrets.json`. Add `secrets.json` to `.gitignore`.
+- Commit `secrets-template.json`, never `secrets.json`. Add `secrets.json` and `*.intunewin` to `.gitignore` (the package contains your real `secrets.json`).
 - `secrets.json` must sit next to the script when you run `IntuneWinAppUtil`, so it ends up inside the `.intunewin`.
 - The script stops with a clear error if the file is missing or `ZipUrl` is still a placeholder.
 - It's a plain file on the PC while the install runs, so a local admin can read it. That's fine for a LAN-only URL, but don't put a real credential or token in it.
@@ -99,7 +122,7 @@ IntuneWinAppUtil.exe -c .\src -s Deploy-UnrealEngine.ps1 -o .\out
 | Install behavior | System |
 | Device restart behavior | No specific action |
 | Max install time | 300 minutes (jitter delay + download + hash + extraction + install all count; adjust after your pilot) |
-| Requirements | 64-bit OS, Windows 10 or later |
+| Requirements | 64-bit OS, Windows 10 or later, **Disk space required: 130000 MB** (peak is the extracted files plus the installed engine, about 115 GB for 5.8.4; see sizing below) |
 | Detection rule | File exists: path `InstallLocation`, file `Engine\Binaries\Win64\UnrealEditor.exe` |
 | Return codes | Defaults (0 success, 3010 soft reboot, 1641 hard reboot, 1618 retry) |
 
