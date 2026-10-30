@@ -1,9 +1,11 @@
-<#Detection script for Makeblock.xToolStudio via Winget
-#Requires a machine-wide (HKLM) install with all-users shortcuts, so per-user installs under SYSTEM fail detection#>
+#Detection script for Makeblock.xToolStudio via Winget
+#Requires a machine-wide (HKLM) install, all-users shortcuts and the staged RNDIS driver
 $ErrorActionPreference = "Stop"
 
 $PackageName  = "Makeblock.xToolStudio"
 $ShortcutPath = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\xTool Studio.lnk"   # match the name the installer/remediation creates
+$DriverInf    = "rndis.inf"
+$DriverMin    = [version]'1.0.0.0'
 
 # Resolve winget.exe
 $Winget = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe" -ErrorAction SilentlyContinue
@@ -30,7 +32,14 @@ $hklmFound = Get-ItemProperty `
 # 3. all-users Start menu shortcut exists
 $shortcutFound = Test-Path $ShortcutPath
 
-if ($wingetFound -and $hklmFound -and $shortcutFound) {
+# 4. RNDIS driver staged in the driver store (third-party packages only)
+$driverFound = Get-WindowsDriver -Online |
+    Where-Object {
+        (Split-Path $_.OriginalFileName -Leaf).ToLower() -eq $DriverInf -and
+        [version]$_.Version -ge $DriverMin
+    }
+
+if ($wingetFound -and $hklmFound -and $shortcutFound -and $driverFound) {
     Write-Host "found it!"
     exit 0
 }

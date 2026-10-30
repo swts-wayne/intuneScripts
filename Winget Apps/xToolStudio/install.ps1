@@ -1,4 +1,3 @@
-# Install xToolStudio with winget; this is longer than other scripts as the xToolStudio winget script doesn't appropriately apply the scope and caused issues for deployment
 $ErrorActionPreference = "Stop"
 # https://github.com/microsoft/winget-pkgs/tree/master/manifests/m/Makeblock/xToolStudio
 $PackageName  = "Makeblock.xToolStudio"
@@ -7,6 +6,7 @@ $PackageScope = "machine"
 $InstallPath  = "C:\Program Files\xToolStudio"
 $ExeName      = "xTool Studio.exe"      # confirm against a test install
 $ShortcutName = "xTool Studio.lnk"      # must match the detection script
+$DriverPath   = Join-Path $PSScriptRoot "Drivers"
 
 # Logging
 $LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs"
@@ -62,7 +62,7 @@ try {
         Get-Process -ErrorAction SilentlyContinue |
             Where-Object { $_.Path -like "$InstallPath\*" } |
             Stop-Process -Force
-        
+
         $UninstallExe = $OldEntry.UninstallString -replace '^"?([^"]+\.exe)"?.*', '$1'
 
         if (Test-Path $UninstallExe) {
@@ -113,6 +113,12 @@ try {
 
     Write-Log "Winget exit code: $ExitCode"
 
+    # 0x8A15002B = already installed, no applicable update. Fine for machines that only need the driver.
+    if ($ExitCode -eq -1978335189) {
+        Write-Log "xTool Studio already installed and up to date, continuing"
+        $ExitCode = 0
+    }
+
     if ($ExitCode -eq 0) {
         # --- Safety net: create all-users shortcuts if the installer didn't ---
         $Exe = Join-Path $InstallPath $ExeName
@@ -144,6 +150,29 @@ try {
         if (-not $Hklm) {
             Write-Log "No HKLM uninstall entry found after install, check /allusers handling" -Level WARNING
         }
+
+        # --- Stage the RNDIS driver in the driver store so standard users can plug in a P2S ---
+        $Pnp = "$env:SystemRoot\sysnative\pnputil.exe"
+        if (-not (Test-Path $Pnp)) { $Pnp = "$env:SystemRoot\System32\pnputil.exe" }
+
+        $Inf = Join-Path $DriverPath "RNDIS.inf"
+        if (-not (Test-Path $Inf)) {
+            Write-Log "Driver INF not found at $Inf" -Level ERROR
+            exit 1
+        }
+
+        Write-Log "Running: pnputil /add-driver $Inf /install"
+        $DriverOutput = & $Pnp /add-driver $Inf /install 2>&1
+        $DriverExit = $LASTEXITCODE
+        $DriverOutput | ForEach-Object { Write-Log $_ }
+        Write-Log "pnputil exit code: $DriverExit"
+
+        # 0 = success, 3010 = success but reboot required
+        if ($DriverExit -ne 0 -and $DriverExit -ne 3010) {
+            Write-Log "Failed to stage RNDIS driver" -Level ERROR
+            exit $DriverExit
+        }
+        if ($DriverExit -eq 3010) { $ExitCode = 3010 }
     }
 
     Write-Log "===== Script Finished ====="
