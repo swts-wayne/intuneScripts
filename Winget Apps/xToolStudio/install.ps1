@@ -19,6 +19,7 @@ if (-not (Test-Path $LogPath)) {
 function Write-Log {
     param(
         [Parameter(Mandatory)]
+        [AllowEmptyString()]
         [string]$Message,
 
         [ValidateSet("INFO", "WARNING", "ERROR")]
