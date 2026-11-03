@@ -1,12 +1,10 @@
 $ErrorActionPreference = "Stop"
 # https://github.com/microsoft/winget-pkgs/tree/master/manifests/l/LocalSend/LocalSend
-$PackageName  = "LocalSend.LocalSend"
-$PackageArch  = "x64"
+$PackageId    = "LocalSend.LocalSend"
 $PackageScope = "machine"
 
-# Logging
 $LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs"
-$LogFile = Join-Path $LogPath "Winget-$($PackageName)-Install.log"
+$LogFile = Join-Path $LogPath "Winget-$PackageId-Install.log"
 
 if (-not (Test-Path $LogPath)) {
     New-Item -Path $LogPath -ItemType Directory -Force | Out-Null
@@ -14,69 +12,63 @@ if (-not (Test-Path $LogPath)) {
 
 function Write-Log {
     param(
-        [Parameter(Mandatory)]
-        [string]$Message,
-
-        [ValidateSet("INFO", "WARNING", "ERROR")]
-        [string]$Level = "INFO"
+        [Parameter(Mandatory)][AllowEmptyString()][string]$Message,
+        [ValidateSet("INFO", "WARNING", "ERROR")][string]$Level = "INFO"
     )
-
-    $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-
-    $Entry = "[$Timestamp] [$Level] $Message"
-
+    $Entry = "[{0}] [{1}] {2}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Level, $Message
     Write-Output $Entry
-    Add-Content -Path $LogFile -Value $Entry
+    Add-Content -Path $LogFile -Value $Entry -Encoding UTF8
 }
-
 
 Write-Log "===== Script Started ====="
 
 try {
-    # Ensure winget exists
-    $Winget = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-    if (-not $Winget) {
-        Write-Log "ERROR: Winget not found" -Level ERROR
+    # Pick the newest installed App Installer by version, not by string order
+    $Winget = Get-ChildItem "C:\Program Files\WindowsApps" -Directory `
+            -Filter "Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe" -ErrorAction SilentlyContinue |
+        Sort-Object { [version]($_.Name -split '_')[1] } -Descending |
+        Select-Object -First 1 |
+        ForEach-Object { Join-Path $_.FullName "winget.exe" }
+
+    if (-not $Winget -or -not (Test-Path $Winget)) {
+        Write-Log "Winget not found" -Level ERROR
         exit 1
     }
 
-    if ($Winget.count -gt 1) {
-        $Winget = $Winget[-1].Path
-    }
+    Write-Log "Winget found: $Winget"
 
-    Write-Log "Winget found: $($Winget)"
-
-    #Structure our winget arguments so we can capture the outputs from winget
     $Arguments = @(
         "install"
-        "--id", "$($PackageName)"
+        "--id", $PackageId
         "--exact"
+        "--source", "winget"
         "--silent"
+        "--disable-interactivity"
         "--accept-package-agreements"
         "--accept-source-agreements"
-        "--scope", "$($PackageScope)"
+        "--scope", $PackageScope
     )
 
     Write-Log "Running: winget $($Arguments -join ' ')"
 
-    #This captures all the console prints from winget so we can log them
-    $Output = & $Winget @Arguments 2>&1
-
-    #Obviously this can only run after winget has "exited" 
-    $Output | ForEach-Object {
-        Write-Log $_
-    }
-
+    # Native stderr must not become a terminating error here
+    $ErrorActionPreference = "Continue"
+    $Output   = & $Winget @Arguments 2>&1
     $ExitCode = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+
+    $Output |
+        ForEach-Object { "$_".Trim() } |
+        Where-Object { $_ -and $_ -notmatch '^[-\\|/]$' -and $_ -notmatch '^[\u2588\u2592\s]+' } |
+        ForEach-Object { Write-Log $_ }
 
     Write-Log "Winget exit code: $ExitCode"
     Write-Log "===== Script Finished ====="
-
     exit $ExitCode
 }
 catch {
-    Write-Log "Unhandled exception:" -Level ERROR
-    Write-Log $_.Exception.Message -Level ERROR
+    Write-Log "Unhandled exception: $($_.Exception.Message)" -Level ERROR
     exit 1
 }
