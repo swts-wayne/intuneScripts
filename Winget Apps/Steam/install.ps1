@@ -61,7 +61,7 @@ try {
 
     $Output |
         ForEach-Object { "$_".Trim() } |
-        Where-Object { $_ -and $_ -notmatch '^[-\\|/]$' -and $_ -notmatch '^[█▒\s]+' } |
+        Where-Object { $_ -and $_ -notmatch '^[-\\|/]$' -and $_ -notmatch '^[\u2588\u2592\s]+' } |
         ForEach-Object { Write-Log $_ }
 
     Write-Log "Winget exit code: $ExitCode"
