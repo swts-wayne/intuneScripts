@@ -1,5 +1,5 @@
-#Detection script for Makeblock.xToolStudio via Winget
-#Requires a machine-wide (HKLM) install, all-users shortcuts and the staged RNDIS driver
+# Detection script for Makeblock.xToolStudio via Winget
+# Requires a machine-wide (HKLM) install, all-users shortcuts and the staged RNDIS driver
 $ErrorActionPreference = "Stop"
 
 $PackageName  = "Makeblock.xToolStudio"

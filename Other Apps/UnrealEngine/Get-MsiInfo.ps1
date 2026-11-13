@@ -78,7 +78,7 @@ if ($Path) {
             Sort-Object Property | Format-Table -AutoSize -Wrap
     }
     else {
-        $wanted = 'ProductName', 'ProductVersion', 'ProductCode', 'Manufacturer'
+        $wanted = 'ProductName', 'ProductVersion', 'ProductCode', 'UpgradeCode', 'Manufacturer'
         Read-Rows -Database $db -Query 'SELECT Property, Value FROM Property' -Columns 2 |
             Where-Object { $_[0] -in $wanted } |
             ForEach-Object { [pscustomobject]@{ Property = $_[0]; Value = $_[1] } } |

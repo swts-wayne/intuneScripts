@@ -21,14 +21,21 @@
 .PARAMETER Action
     Install or Uninstall.
 
+.PARAMETER ConfigFile
+    Per-version settings (JSON, safe to commit): engine version, zip name and hash, product code,
+    install location and so on. Relative paths resolve against the script's folder. One Intune app
+    per engine version, each pointing at its own file. The download URL stays in secrets.json.
+
 .EXAMPLE
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-UnrealEngine.ps1 -Action Install
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-UnrealEngine.ps1 -Action Install -ConfigFile .\ue-5.8.4.json
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
     [ValidateSet('Install', 'Uninstall')]
-    [string]$Action
+    [string]$Action,
+
+    [string]$ConfigFile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,27 +44,51 @@ $ErrorActionPreference = 'Stop'
 # gets redirected to SysWOW64. Re-run in 64-bit PowerShell so tar/msiexec/curl behave normally.
 if ($env:PROCESSOR_ARCHITEW6432 -eq 'AMD64') {
     $ps64 = Join-Path $env:windir 'sysnative\WindowsPowerShell\v1.0\powershell.exe'
-    & $ps64 -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -Action $Action
+    $relaunchArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, '-Action', $Action)
+    if ($ConfigFile) { $relaunchArgs += @('-ConfigFile', $ConfigFile) }
+    & $ps64 @relaunchArgs
     exit $LASTEXITCODE
 }
 
-# ============================ CONFIG: edit per engine version ============================
+# ================================ CONFIG: defaults ========================================
+# Version-specific values (the first block) normally come from the -ConfigFile JSON, e.g. ue-5.2.json.
+# Anything can be overridden there, and the download URL comes from secrets.json (git-ignored).
 $Config = @{
-    EngineVersion   = '5.8.4'                                 # label used in logs, BITS job and staging folder names
-    ZipUrl          = ''                                      # supplied by secrets.json (not committed to git)
-    ZipFileName     = 'UnrealEngineInstaller5-8-4.zip'
-    ZipSha256       = 'A0B28A67EF294E83687B7B7272BAAA3CABD019B3D8ACF5C2AEF8C6B45FD3213D'               # from Get-MsiInfo.ps1 -ZipPath
-    MsiRelPath      = ''                                      # MSI path inside the zip, e.g. 'Installer\UnrealEngine.msi'. Blank = auto-detect (must be the only .msi)
-    ProductCode     = '{222D5CFC-D556-4F66-922D-85F180F4C646}'   # needed for uninstall
-    InstallLocation = 'C:\Program Files\Epic Games\UE_5.8'    # verify against a test install
+    # --- per engine version: set these in the -ConfigFile JSON ---
+    EngineVersion   = ''        # label used in logs, BITS job and staging folder names, e.g. '5.8.4'
+    ZipBaseUrl      = ''        # supplied by secrets.json (not committed to git); the zip is fetched from <ZipBaseUrl>/<ZipFileName>
+    ZipUrl          = ''        # optional full URL override (secrets.json); normally left empty
+    ZipFileName     = ''        # file name of the offline installer zip
+    ZipSha256       = ''        # from Get-MsiInfo.ps1 -ZipPath
+    MsiRelPath      = ''        # MSI path inside the zip, e.g. 'Installer\UnrealEngine.msi'. Blank = auto-detect (must be the only .msi)
+    ProductCode     = ''        # from Get-MsiInfo.ps1 -Path; needed for uninstall
+    InstallLocation = ''        # e.g. 'C:\Program Files\Epic Games\UE_5.8' (the MSI uses the major.minor folder name)
+    ExtraMsiArgs    = ''        # e.g. platform/symbol switches, see Get-MsiInfo.ps1 -AllProperties
+    MinFreeGB       = 130       # peak need is the extracted files plus the installed engine. Size it from your measurements
+
+    # --- shared defaults ---
     DetectRelPath   = 'Engine\Binaries\Win64\UnrealEditor.exe' # file that proves the install worked
-    ExtraMsiArgs    = ''                                      # e.g. the symbols property, see Get-MsiInfo.ps1 -AllProperties
-    MinFreeGB       = 250                                     # peak need is roughly zip + extracted files, or extracted + installed engine. Adjust to your sizes
     MaxJitterSec    = 900                                     # random start delay, 0..N seconds
     VcRedistMinVersion = '14.44.35211.0'                      # minimum VC++ 2015-2022 x64 runtime. Set this to the version on a PC where the editor launches (see README)
     VcRedistUrl     = 'https://aka.ms/vs/17/release/vc_redist.x64.exe'   # Microsoft's "latest" link. Override in secrets.json to use an internal copy
 }
 # ==========================================================================================
+
+# Per-version settings (not secret, safe to commit)
+$ConfigFilePath = $null
+if ($ConfigFile) {
+    $ConfigFilePath = if ([System.IO.Path]::IsPathRooted($ConfigFile)) { $ConfigFile } else { Join-Path $PSScriptRoot $ConfigFile }
+    if (-not (Test-Path $ConfigFilePath)) {
+        throw "Config file not found: $ConfigFilePath"
+    }
+    $versionSettings = Get-Content -Path $ConfigFilePath -Raw | ConvertFrom-Json
+    foreach ($prop in $versionSettings.PSObject.Properties) {
+        $Config[$prop.Name] = $prop.Value
+    }
+}
+if ([string]::IsNullOrWhiteSpace($Config.EngineVersion)) {
+    throw 'EngineVersion is not set. Pass -ConfigFile with the per-version settings (see ue-5.8.4.json).'
+}
 
 $PackageName = "UnrealEngine-$($Config.EngineVersion)"
 $WorkDir = Join-Path $env:ProgramData 'UEDeploy'   # zip and extracted files live here temporarily
@@ -120,8 +151,28 @@ function Import-Secrets {
 
     Set-DerivedPaths
 
+    # Normal case: secrets.json holds only the base URL, and the file name comes from the version's
+    # settings file, so every engine version downloads its own zip. A full ZipUrl still wins if set.
+    if ([string]::IsNullOrWhiteSpace($script:Config.ZipUrl) -and -not [string]::IsNullOrWhiteSpace($script:Config.ZipBaseUrl)) {
+        $script:Config.ZipUrl = ([string]$script:Config.ZipBaseUrl).TrimEnd('/') + '/' + [System.Uri]::EscapeDataString([string]$script:Config.ZipFileName)
+        Write-Log 'Download URL built from ZipBaseUrl + ZipFileName'
+    }
+
     if ([string]::IsNullOrWhiteSpace($script:Config.ZipUrl) -or $script:Config.ZipUrl -match 'example\.|PASTE') {
-        throw 'ZipUrl is missing or still a placeholder in secrets.json'
+        throw 'No usable download URL: set ZipBaseUrl (or a full ZipUrl) in secrets.json'
+    }
+}
+
+function Assert-Config {
+    # Fail fast, before any download, if a required value is missing or still a placeholder
+    $required = @('EngineVersion', 'ZipFileName', 'ProductCode', 'InstallLocation')
+    if ($Action -eq 'Install') { $required += 'ZipSha256' }
+    $bad = @(foreach ($k in $required) {
+        $v = [string]$script:Config[$k]
+        if ([string]::IsNullOrWhiteSpace($v) -or $v -match 'PASTE|5\.X') { $k }
+    })
+    if ($bad.Count -gt 0) {
+        throw "Config values missing or still placeholders: $($bad -join ', '). Fill them in the version config file."
     }
 }
 
@@ -344,7 +395,9 @@ function Invoke-Msiexec {
 
 try {
     Write-Log "=== $Action Unreal Engine $($Config.EngineVersion) on $env:COMPUTERNAME ==="
+    if ($ConfigFilePath) { Write-Log "Version settings loaded from $ConfigFilePath" }
     Import-Secrets
+    Assert-Config
 
     switch ($Action) {
         'Install' {

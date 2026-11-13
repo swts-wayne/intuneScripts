@@ -1,0 +1,10 @@
+{
+    "EngineVersion": "5.8.4",
+    "ZipFileName": "UnrealEngineInstaller5-8-4.zip",
+    "ZipSha256": "PASTE_SHA256_OF_THE_ZIP",
+    "MsiRelPath": "",
+    "ProductCode": "{222D5CFC-D556-4F66-922D-85F180F4C646}",
+    "InstallLocation": "C:\\Program Files\\Epic Games\\UE_5.8",
+    "ExtraMsiArgs": "",
+    "MinFreeGB": 130
+}

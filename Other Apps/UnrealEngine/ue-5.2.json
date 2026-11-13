@@ -1,0 +1,10 @@
+{
+    "EngineVersion": "5.2",
+    "ZipFileName": "PASTE_ZIP_FILE_NAME.zip",
+    "ZipSha256": "PASTE_SHA256_OF_THE_ZIP",
+    "MsiRelPath": "",
+    "ProductCode": "{PASTE-PRODUCT-CODE}",
+    "InstallLocation": "C:\\Program Files\\Epic Games\\UE_5.2",
+    "ExtraMsiArgs": "",
+    "MinFreeGB": 130
+}
