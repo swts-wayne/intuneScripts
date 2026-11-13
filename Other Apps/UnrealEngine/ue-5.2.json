@@ -1,9 +1,9 @@
 {
-    "EngineVersion": "5.2",
-    "ZipFileName": "PASTE_ZIP_FILE_NAME.zip",
-    "ZipSha256": "PASTE_SHA256_OF_THE_ZIP",
+    "EngineVersion": "5.2.1",
+    "ZipFileName": "UnrealEngineInstaller5-2-1.zip",
+    "ZipSha256": "1000ECC1785091EC7F390A155F18F1C5062A6C2D9018B569B2739A71F74602EB",
     "MsiRelPath": "",
-    "ProductCode": "{PASTE-PRODUCT-CODE}",
+    "ProductCode": "{AD4124DF-B3E1-4BCB-B7B3-720BA20BBAE7}",
     "InstallLocation": "C:\\Program Files\\Epic Games\\UE_5.2",
     "ExtraMsiArgs": "",
     "MinFreeGB": 130
